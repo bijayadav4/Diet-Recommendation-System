@@ -119,6 +119,3 @@ The app is designed for modern browsers that support:
 - The generated meal plan is a recommendation tool, not medical advice.
 - For best results, serve the project through a local web server when developing.
 
-## License
-
-No license has been specified for this project.
