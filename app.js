@@ -8,6 +8,12 @@ const STORAGE_KEYS = {
     PROFILE_IMAGE: 'drs_profile_image',
     RESULT: 'drs_last_result',
     WATER_COUNT: 'drs_water_count',
+  WATER_DAY: 'drs_water_day',
+  WATER_HISTORY: 'drs_water_history',
+  WATER_STREAK: 'drs_water_streak',
+  WATER_STREAK_DATE: 'drs_water_streak_date',
+  ONBOARDING_DISMISSED: 'drs_onboarding_dismissed',
+  ACHIEVEMENTS: 'drs_achievements',
   };
 
   // Activity multipliers for TDEE calculation
@@ -160,8 +166,222 @@ const STORAGE_KEYS = {
     return Number.isFinite(n) ? n : NaN;
   }
 
-  function showMessage(msg) {
-    alert(msg);
+  function showMessage(msg, title = 'Update') {
+    const container = qs('#toastContainer');
+    if (!container) {
+      alert(msg);
+      return;
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'toast-custom';
+    toast.innerHTML = `<div class="title">${title}</div><div class="message">${msg}</div>`;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('visible'));
+
+    setTimeout(() => {
+      toast.classList.remove('visible');
+      setTimeout(() => toast.remove(), 220);
+    }, 2300);
+  }
+
+  function todayKey() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function loadWaterHistory() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.WATER_HISTORY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      console.error('Failed to load water history:', e);
+      return {};
+    }
+  }
+
+  function saveWaterHistory(history) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.WATER_HISTORY, JSON.stringify(history));
+    } catch (e) {
+      console.error('Failed to save water history:', e);
+    }
+  }
+
+  function loadAchievements() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.ACHIEVEMENTS);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return {
+        planStarter: Boolean(parsed.planStarter),
+        hydrationHero: Boolean(parsed.hydrationHero),
+        consistencyChamp: Boolean(parsed.consistencyChamp),
+      };
+    } catch {
+      return { planStarter: false, hydrationHero: false, consistencyChamp: false };
+    }
+  }
+
+  function saveAchievements(state) {
+    localStorage.setItem(STORAGE_KEYS.ACHIEVEMENTS, JSON.stringify(state));
+  }
+
+  let achievementsState = loadAchievements();
+
+  function renderAchievements() {
+    qsa('.achievement-item').forEach((el) => {
+      const key = el.getAttribute('data-achievement');
+      el.classList.toggle('unlocked', Boolean(achievementsState[key]));
+    });
+    const unlocked = Object.values(achievementsState).filter(Boolean).length;
+    const counter = qs('#achievementCounter');
+    if (counter) counter.textContent = `${unlocked}/3 unlocked`;
+  }
+
+  function unlockAchievement(key, message) {
+    if (!Object.prototype.hasOwnProperty.call(achievementsState, key)) return;
+    if (achievementsState[key]) return;
+    achievementsState[key] = true;
+    saveAchievements(achievementsState);
+    renderAchievements();
+    if (message) showMessage(message, 'Achievement Unlocked');
+  }
+
+  function animateNumber(el, from, to, decimals = 0, duration = 650) {
+    if (!el) return;
+    const start = performance.now();
+    const safeFrom = Number.isFinite(from) ? from : 0;
+    const safeTo = Number.isFinite(to) ? to : 0;
+
+    function tick(now) {
+      const progress = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const value = safeFrom + (safeTo - safeFrom) * eased;
+      el.textContent = value.toFixed(decimals);
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function setBmiNeedle(bmi) {
+    const needle = qs('#bmiNeedle');
+    if (!needle || !Number.isFinite(bmi)) return;
+    const clamped = Math.max(15, Math.min(35, bmi));
+    const pct = (clamped - 15) / 20;
+    const deg = 270 * pct - 135;
+    needle.style.transform = `rotate(${deg}deg)`;
+  }
+
+  function setCalculateLoading(loading) {
+    const btn = DOM.calculateBtn;
+    if (!btn) return;
+    if (loading) {
+      btn.classList.add('calculating');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Calculating...';
+    } else {
+      btn.classList.remove('calculating');
+      btn.disabled = false;
+      btn.textContent = 'Calculate Diet Plan';
+    }
+  }
+
+  function initOnboardingTips() {
+    const tips = qs('#onboardingTips');
+    const dismissBtn = qs('#dismissTipsBtn');
+    if (!tips) return;
+
+    const dismissed = localStorage.getItem(STORAGE_KEYS.ONBOARDING_DISMISSED) === '1';
+    if (!dismissed) tips.classList.remove('hidden');
+
+    dismissBtn?.addEventListener('click', () => {
+      tips.classList.add('hidden');
+      localStorage.setItem(STORAGE_KEYS.ONBOARDING_DISMISSED, '1');
+    });
+  }
+
+  function updateLiveSummary() {
+    const height = toNumber(qs('#height')?.value);
+    const weight = toNumber(qs('#weight')?.value);
+    const age = toNumber(qs('#age')?.value);
+    const gender = qs('#gender')?.value;
+    const activity = qs('#activity')?.value;
+    const goal = qs('#goal')?.value;
+
+    const bmiEl = qs('#liveBmi');
+    const catEl = qs('#liveCategory');
+    const calEl = qs('#liveCalories');
+
+    if (!Number.isFinite(height) || !Number.isFinite(weight) || height <= 0) {
+      if (bmiEl) bmiEl.textContent = '--';
+      if (catEl) catEl.textContent = '--';
+      if (calEl) calEl.textContent = '--';
+      return;
+    }
+
+    const bmi = weight / Math.pow(height / 100, 2);
+    if (bmiEl) bmiEl.textContent = bmi.toFixed(1);
+    if (catEl) catEl.textContent = bmiCategory(bmi);
+
+    if (!Number.isFinite(age) || !gender || !activity || !goal) {
+      if (calEl) calEl.textContent = '--';
+      return;
+    }
+
+    const bmr = mifflinStJeorBMR({ gender, weight, height, age });
+    let calories = Math.round(bmr * (activityMultipliers[activity] || 1.2));
+    if (goal === 'lose') calories -= 500;
+    if (goal === 'gain') calories += 500;
+    if (calEl) calEl.textContent = String(calories);
+  }
+
+  function initLiveSummary() {
+    const ids = ['#age', '#gender', '#height', '#weight', '#activity', '#goal'];
+    ids.forEach((id) => {
+      const el = qs(id);
+      if (!el) return;
+      el.addEventListener('input', updateLiveSummary);
+      el.addEventListener('change', updateLiveSummary);
+    });
+    updateLiveSummary();
+  }
+
+  function initSectionAwareNav() {
+    const navLinks = qsa('.navbar .nav-link[href^="#"]');
+    const sections = navLinks
+      .map((link) => qs(link.getAttribute('href')))
+      .filter(Boolean);
+
+    if (!sections.length || !('IntersectionObserver' in window)) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const id = `#${entry.target.id}`;
+        navLinks.forEach((link) => {
+          link.classList.toggle('active', link.getAttribute('href') === id);
+        });
+      });
+    }, { rootMargin: '-45% 0px -45% 0px', threshold: 0.01 });
+
+    sections.forEach((section) => observer.observe(section));
+  }
+
+  function initCardTilt() {
+    const cards = qsa('.card');
+    cards.forEach((card) => {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const rx = ((y / rect.height) - 0.5) * -3;
+        const ry = ((x / rect.width) - 0.5) * 3;
+        card.style.transform = `perspective(900px) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) translateY(-3px)`;
+      });
+
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = '';
+      });
+    });
   }
   
   // ... (BMI and Calorie Calculation functions remain the same)
@@ -209,9 +429,15 @@ const STORAGE_KEYS = {
   
   function renderResults(result, profile) {
     // Safe updates with optional chaining and existence checks
-    if (qs('#bmiValue')) qs('#bmiValue').textContent = result.bmi.toFixed(1);
+    const bmiEl = qs('#bmiValue');
+    const calEl = qs('#calories');
+    const prevBmi = toNumber(bmiEl?.textContent);
+    const prevCal = toNumber(calEl?.textContent);
+
+    if (bmiEl) animateNumber(bmiEl, Number.isFinite(prevBmi) ? prevBmi : 0, result.bmi, 1);
+    setBmiNeedle(result.bmi);
     if (qs('#bmiCategory')) qs('#bmiCategory').textContent = result.category;
-    if (qs('#calories')) qs('#calories').textContent = String(result.dailyCalories);
+    if (calEl) animateNumber(calEl, Number.isFinite(prevCal) ? prevCal : 0, result.dailyCalories, 0);
     
     // Progress bars
     const maxCalories = 3000;
@@ -294,16 +520,16 @@ const STORAGE_KEYS = {
       const text = lines.join('\n');
       if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
-          alert('Grocery list copied to clipboard');
+          showMessage('Grocery list copied to clipboard', 'Copied');
         }).catch(() => {
-          alert('Failed to copy.');
+          showMessage('Failed to copy list. Please try again.', 'Error');
         });
       } else {
         const ta = document.createElement('textarea');
         ta.value = text;
         document.body.appendChild(ta);
         ta.select();
-        try { document.execCommand('copy'); alert('Grocery list copied to clipboard'); } catch {}
+        try { document.execCommand('copy'); showMessage('Grocery list copied to clipboard', 'Copied'); } catch {}
         document.body.removeChild(ta);
       }
     });
@@ -355,21 +581,58 @@ const STORAGE_KEYS = {
     const tracker = qs('#waterTracker');
     const countEl = qs('#waterCount');
     const volumeEl = qs('#waterVolume');
+    const streakEl = qs('#hydrationStreak');
     const resetBtn = qs('#resetWaterBtn');
     if (!tracker) return;
 
+    const today = todayKey();
     let waterCount = parseInt(localStorage.getItem(STORAGE_KEYS.WATER_COUNT) || '0', 10);
+    let streak = parseInt(localStorage.getItem(STORAGE_KEYS.WATER_STREAK) || '0', 10);
+    let lastStreakDate = localStorage.getItem(STORAGE_KEYS.WATER_STREAK_DATE) || '';
+    const savedDay = localStorage.getItem(STORAGE_KEYS.WATER_DAY);
+
+    if (savedDay !== today) {
+      waterCount = 0;
+      localStorage.setItem(STORAGE_KEYS.WATER_DAY, today);
+      localStorage.setItem(STORAGE_KEYS.WATER_COUNT, '0');
+    }
 
     function updateWaterDisplay() {
       if (countEl) countEl.textContent = waterCount;
       if (volumeEl) volumeEl.textContent = waterCount * 250;
       localStorage.setItem(STORAGE_KEYS.WATER_COUNT, waterCount.toString());
+      const day = todayKey();
+      localStorage.setItem(STORAGE_KEYS.WATER_DAY, day);
+      const history = loadWaterHistory();
+      history[day] = waterCount;
+      saveWaterHistory(history);
+
+      if (streakEl) streakEl.textContent = `Streak: ${streak} day${streak === 1 ? '' : 's'}`;
 
       // Update glasses
       const glasses = qsa('.water-glass');
       glasses.forEach((glass, i) => {
         glass.classList.toggle('filled', i < waterCount);
       });
+
+      const nowDay = todayKey();
+      if (waterCount >= 8 && lastStreakDate !== nowDay) {
+        const prevDay = new Date(nowDay);
+        prevDay.setDate(prevDay.getDate() - 1);
+        const prevKey = prevDay.toISOString().slice(0, 10);
+
+        if (lastStreakDate === prevKey) streak += 1;
+        else streak = 1;
+
+        lastStreakDate = nowDay;
+        localStorage.setItem(STORAGE_KEYS.WATER_STREAK, String(streak));
+        localStorage.setItem(STORAGE_KEYS.WATER_STREAK_DATE, nowDay);
+        if (streakEl) streakEl.textContent = `Streak: ${streak} day${streak === 1 ? '' : 's'}`;
+        unlockAchievement('hydrationHero', 'Hydration Hero: You hit 8 glasses in a day.');
+        showMessage('Great consistency. Daily hydration target reached.', 'Hydration');
+      }
+
+      renderWeeklyInsights();
     }
 
     // Create glasses
@@ -392,6 +655,7 @@ const STORAGE_KEYS = {
       resetBtn.addEventListener('click', () => {
         waterCount = 0;
         updateWaterDisplay();
+        showMessage('Today\'s water intake has been reset.', 'Hydration');
       });
     }
 
@@ -415,8 +679,200 @@ const STORAGE_KEYS = {
     }
   }
 
+  function shuffleMealsFromCurrentResult() {
+    const snapshotRaw = localStorage.getItem(STORAGE_KEYS.RESULT);
+    if (!snapshotRaw) {
+      showMessage('Calculate a plan first to shuffle meals.', 'Info');
+      return;
+    }
+
+    try {
+      const snapshot = JSON.parse(snapshotRaw);
+      const meals = snapshot.meals;
+      if (!meals) return;
+
+      const shuffled = {};
+      ['breakfast', 'lunch', 'dinner'].forEach((meal) => {
+        const list = [...(meals[meal] || [])];
+        for (let i = list.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [list[i], list[j]] = [list[j], list[i]];
+        }
+        shuffled[meal] = list;
+      });
+
+      snapshot.meals = shuffled;
+      localStorage.setItem(STORAGE_KEYS.RESULT, JSON.stringify(snapshot));
+      updateDietRecommendations(shuffled);
+      showMessage('Meal suggestions shuffled for variety.', 'Updated');
+    } catch {
+      showMessage('Unable to shuffle meals right now.', 'Error');
+    }
+  }
+
+  function initQuickActions() {
+    const fab = qs('#quickActionFab');
+    const panel = qs('#quickActionPanel');
+    if (!fab || !panel) return;
+
+    fab.addEventListener('click', () => {
+      panel.classList.toggle('hidden');
+    });
+
+    qsa('[data-quick-target]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const target = btn.getAttribute('data-quick-target');
+        if (target) scrollToTarget(target);
+        panel.classList.add('hidden');
+      });
+    });
+
+    qs('#quickToggleThemeBtn')?.addEventListener('click', () => {
+      const darkToggle = qs('#darkToggle');
+      if (!darkToggle) return;
+      darkToggle.checked = !darkToggle.checked;
+      darkToggle.dispatchEvent(new Event('change', { bubbles: true }));
+      panel.classList.add('hidden');
+    });
+
+    qs('#quickExportProgressBtn')?.addEventListener('click', () => {
+      exportProgress();
+      panel.classList.add('hidden');
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        panel.classList.toggle('hidden');
+      }
+    });
+  }
+
   // Progress tracking functions
   let progressData = [];
+  let isCalculating = false;
+
+  function renderSparkline(containerId, values, color, labels = [], valueFormatter = (v) => String(v)) {
+    const container = qs(containerId);
+    if (!container) return;
+    if (!Array.isArray(values) || values.length < 2) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const width = Math.max(140, container.clientWidth || 180);
+    const height = 34;
+    const pad = 2;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+
+    const pointsData = values.map((v, i) => {
+      const x = pad + (i / (values.length - 1)) * (width - pad * 2);
+      const y = height - pad - ((v - min) / range) * (height - pad * 2);
+      return { x, y, v, i };
+    });
+
+    const points = pointsData.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+    const circles = pointsData.map((p) => `<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="3.2" fill="${color}" stroke="#ffffff" stroke-width="1" data-index="${p.i}" class="spark-point" />`).join('');
+
+    container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="trend sparkline"><polyline points="${points}" style="stroke:${color};" />${circles}</svg><div class="spark-tooltip"></div>`;
+
+    const tooltip = container.querySelector('.spark-tooltip');
+    const svg = container.querySelector('svg');
+    if (!tooltip || !svg) return;
+
+    svg.addEventListener('mousemove', (evt) => {
+      const target = evt.target;
+      if (!target.classList.contains('spark-point')) {
+        tooltip.style.display = 'none';
+        return;
+      }
+
+      const idx = Number(target.getAttribute('data-index'));
+      const label = labels[idx] || `Point ${idx + 1}`;
+      const value = valueFormatter(values[idx]);
+      tooltip.textContent = `${label}: ${value}`;
+      tooltip.style.display = 'block';
+
+      const rect = svg.getBoundingClientRect();
+      const x = evt.clientX - rect.left;
+      const y = evt.clientY - rect.top;
+      tooltip.style.left = `${x}px`;
+      tooltip.style.top = `${Math.max(6, y - 22)}px`;
+    });
+
+    svg.addEventListener('mouseleave', () => {
+      tooltip.style.display = 'none';
+    });
+  }
+
+  function renderWeeklyInsights() {
+    const calorieEl = qs('#weeklyCalories');
+    const hydrationEl = qs('#weeklyHydration');
+    const trendEl = qs('#weeklyTrend');
+    const trendNoteEl = qs('#weeklyTrendNote');
+    const hydrationSeries = [];
+    const trendSeries = [];
+    if (!calorieEl || !hydrationEl || !trendEl || !trendNoteEl) return;
+
+    const snapshotRaw = localStorage.getItem(STORAGE_KEYS.RESULT);
+    if (snapshotRaw) {
+      try {
+        const snapshot = JSON.parse(snapshotRaw);
+        const calories = snapshot?.result?.dailyCalories;
+        calorieEl.textContent = Number.isFinite(calories) ? `${calories} cal/day` : '--';
+      } catch {
+        calorieEl.textContent = '--';
+      }
+    } else {
+      calorieEl.textContent = '--';
+    }
+
+    const history = loadWaterHistory();
+    let completedDays = 0;
+    const hydrationLabels = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const count = history[key] || 0;
+      hydrationSeries.push(count);
+      hydrationLabels.push(d.toLocaleDateString(undefined, { weekday: 'short' }));
+      if (count >= 8) completedDays += 1;
+    }
+    const pct = Math.round((completedDays / 7) * 100);
+    hydrationEl.textContent = `${completedDays}/7 days (${pct}%)`;
+    renderSparkline('#weeklyHydrationSpark', hydrationSeries, '#0ea5e9', hydrationLabels, (v) => `${v} glasses`);
+
+    if (!progressData.length || progressData.length < 2) {
+      trendEl.textContent = '--';
+      trendNoteEl.textContent = 'Add at least 2 progress entries to view trend.';
+      renderSparkline('#weeklyTrendSpark', [], '#f97316');
+      return;
+    }
+
+    const sorted = [...progressData].sort((a, b) => a.timestamp - b.timestamp);
+    const trendLabels = [];
+    sorted.slice(-7).forEach((item) => {
+      trendSeries.push(item.weight);
+      trendLabels.push(item.date);
+    });
+    const first = sorted[0].weight;
+    const last = sorted[sorted.length - 1].weight;
+    const diff = Number((last - first).toFixed(1));
+    if (diff < 0) {
+      trendEl.textContent = `Down ${Math.abs(diff)} kg`;
+      trendNoteEl.textContent = 'Overall weight is trending downward.';
+    } else if (diff > 0) {
+      trendEl.textContent = `Up ${diff} kg`;
+      trendNoteEl.textContent = 'Overall weight is trending upward.';
+    } else {
+      trendEl.textContent = 'Stable';
+      trendNoteEl.textContent = 'Weight has stayed steady across entries.';
+    }
+    renderSparkline('#weeklyTrendSpark', trendSeries, '#f97316', trendLabels, (v) => `${v} kg`);
+  }
 
   function addProgressEntry(date, weight) {
     console.log('addProgressEntry called with date:', date, 'weight:', weight);
@@ -426,6 +882,10 @@ const STORAGE_KEYS = {
     saveProgressToStorage(progressData);
     updateProgressSummary();
     renderProgressChart();
+    renderWeeklyInsights();
+    if (progressData.length >= 3) {
+      unlockAchievement('consistencyChamp', 'Consistency Champ: 3+ progress entries logged.');
+    }
     console.log('Progress entry added, data length:', progressData.length);
   }
 
@@ -434,6 +894,7 @@ const STORAGE_KEYS = {
     saveProgressToStorage(progressData);
     updateProgressSummary();
     renderProgressChart();
+    renderWeeklyInsights();
   }
 
   function updateProgressSummary() {
@@ -569,6 +1030,12 @@ const STORAGE_KEYS = {
     initImageHandling();
     initWaterTracker();
     initGroceryModal();
+    initSectionAwareNav();
+    initCardTilt();
+    initLiveSummary();
+    initOnboardingTips();
+    initQuickActions();
+    renderAchievements();
 
     if (DOM.progressDateInput) DOM.progressDateInput.value = new Date().toISOString().split('T')[0];
 
@@ -576,6 +1043,7 @@ const STORAGE_KEYS = {
     progressData = loadProgressFromStorage();
     updateProgressSummary();
     renderProgressChart();
+    renderWeeklyInsights();
 
     // Load saved profile
     const savedProfile = loadProfileFromStorage();
@@ -584,6 +1052,7 @@ const STORAGE_KEYS = {
         const el = qs(`#${key}`);
         if (el) el.value = savedProfile[key];
       });
+      updateLiveSummary();
     }
   
     // Dark mode toggle (FIXED: Added element check)
@@ -611,12 +1080,18 @@ const STORAGE_KEYS = {
     // Event Listeners
     if (DOM.calculateBtn) {
       DOM.calculateBtn.addEventListener('click', () => {
+        if (isCalculating) return;
         console.log('Calculate button clicked');
         if (!applyValidation(DOM.form)) {
           console.log('Form validation failed');
           scrollToTarget(DOM.form);
           return;
         }
+
+        isCalculating = true;
+        setCalculateLoading(true);
+
+        setTimeout(() => {
         console.log('Form validation passed');
         const profile = {
           name: qs('#name').value,
@@ -643,7 +1118,12 @@ const STORAGE_KEYS = {
         console.log('Snapshot saved to localStorage:', snapshot);
 
         renderResults(result, profile);
+        unlockAchievement('planStarter', 'Plan Starter: First personalized plan created.');
+        renderWeeklyInsights();
         scrollToTarget('#resultsSection');
+        setCalculateLoading(false);
+        isCalculating = false;
+        }, 450);
       });
     }
 
@@ -652,6 +1132,8 @@ const STORAGE_KEYS = {
         window.location.href = 'results.html';
       });
     }
+
+    qs('#shuffleMealsBtn')?.addEventListener('click', shuffleMealsFromCurrentResult);
 
     if (DOM.addProgressBtn) {
       DOM.addProgressBtn.addEventListener('click', () => {
@@ -670,7 +1152,7 @@ const STORAGE_KEYS = {
       DOM.clearProgressBtn.addEventListener('click', () => {
         if (confirm('Are you sure you want to clear ALL saved progress data? This action cannot be undone.')) {
           clearProgress();
-          showMessage('Progress data cleared.');
+          showMessage('Progress data cleared.', 'Progress');
         }
       });
     }
@@ -682,7 +1164,7 @@ const STORAGE_KEYS = {
     // Save PDF button (placeholder)
     if (DOM.savePdfBtn) {
       DOM.savePdfBtn.addEventListener('click', () => {
-        showMessage('PDF export feature coming soon!');
+        showMessage('PDF export feature coming soon!', 'Info');
       });
     }
 

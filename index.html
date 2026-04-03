@@ -6,7 +6,7 @@
     <title>Diet Recommendation System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark">
@@ -46,6 +46,7 @@
         <div class="hero-section">
             <div class="row align-items-center">
                 <div class="col-lg-6">
+                    <p class="hero-kicker mb-2">Smart Nutrition Engine</p>
                     <h1 class="display-4 fw-bold mb-4">Personalized Diet Recommendations</h1>
                     <p class="lead mb-4">Get customized meal plans based on your body metrics, activity level, and health goals.</p>
                     <button class="btn btn-light btn-lg" data-scroll-target="#calculator">Calculate Your Diet Plan</button>
@@ -96,13 +97,50 @@
             <div class="col-12">
                 <div class="card p-4">
                     <h4 class="mb-4">Enter Your Details</h4>
+                    <div id="onboardingTips" class="onboarding-tips mb-3 hidden" role="status" aria-live="polite">
+                        <div class="d-flex justify-content-between align-items-start gap-3">
+                            <div>
+                                <div class="tips-title">Quick Start</div>
+                                <p class="mb-2">Fill profile details, calculate your plan, and track your weight weekly for better results.</p>
+                                <div class="tips-chips">
+                                    <span class="tips-chip">1. Fill Basics</span>
+                                    <span class="tips-chip">2. Calculate Plan</span>
+                                    <span class="tips-chip">3. Track Progress</span>
+                                </div>
+                            </div>
+                            <button type="button" id="dismissTipsBtn" class="btn btn-sm btn-outline-secondary flex-shrink-0">Dismiss</button>
+                        </div>
+                    </div>
                     <form id="dietForm" novalidate>
                         <div class="mb-3 d-flex align-items-center gap-3">
-                            <img id="profileImagePreview" alt="Profile" class="profile-image rounded" style="width:64px;height:64px;object-fit:cover;border:2px solid #e5e7eb;" />
+                            <img id="profileImagePreview" alt="Profile" class="profile-image profile-circle" style="width:64px;height:64px;object-fit:cover;border:2px solid #e5e7eb;" />
                             <label class="btn btn-sm btn-outline-secondary mb-0">
                                 <i class="fa-solid fa-image me-2"></i>Upload Image
                                 <input type="file" accept="image/*" id="profileImageInput" class="d-none" />
                             </label>
+                        </div>
+                        <div class="live-summary mb-4" id="liveSummaryCard">
+                            <div class="live-summary-title">Live Health Snapshot</div>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <div class="summary-pill">
+                                        <span class="label">BMI</span>
+                                        <strong id="liveBmi">--</strong>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="summary-pill">
+                                        <span class="label">Category</span>
+                                        <strong id="liveCategory">--</strong>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="summary-pill">
+                                        <span class="label">Est. Calories</span>
+                                        <strong id="liveCalories">--</strong>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Full Name</label>
@@ -174,6 +212,7 @@
                         <div class="text-center mb-4">
                             <h5>Your BMI</h5>
                             <div class="bmi-gauge">
+                                <div id="bmiNeedle" class="bmi-needle" aria-hidden="true"></div>
                                 <div class="bmi-center">
                                     <span id="bmiValue" class="fw-bold" style="font-size: 24px;">0</span>
                                     <span id="bmiCategory" class="small">Category</span>
@@ -212,6 +251,7 @@
                             </div>
                         </div>
                         <div class="text-center mt-4">
+                            <button id="shuffleMealsBtn" class="btn btn-outline-secondary me-2"><i class="fa-solid fa-shuffle me-2"></i>Shuffle Meals</button>
                             <button id="viewDetailsBtn" class="btn btn-outline-primary"><i class="fa-solid fa-chart-bar me-2"></i>View Full Plan</button>
                         </div>
                     </div>
@@ -256,6 +296,70 @@
                     </div>
                 </div>
             </div>
+            <div class="col-12 mt-4">
+                <div class="card p-4" id="weeklyInsightsCard">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="mb-0">Weekly Insights</h4>
+                        <span class="small text-muted">Last 7 days</span>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="insight-item">
+                                <div class="insight-label">Calorie Target</div>
+                                <div class="insight-value" id="weeklyCalories">--</div>
+                                <div class="insight-note">Current daily recommendation</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="insight-item">
+                                <div class="insight-label">Hydration Score</div>
+                                <div class="insight-value" id="weeklyHydration">--</div>
+                                <div class="insight-spark" id="weeklyHydrationSpark" aria-hidden="true"></div>
+                                <div class="insight-note">Days you reached 8 glasses</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="insight-item">
+                                <div class="insight-label">Weight Trend</div>
+                                <div class="insight-value" id="weeklyTrend">--</div>
+                                <div class="insight-spark" id="weeklyTrendSpark" aria-hidden="true"></div>
+                                <div class="insight-note" id="weeklyTrendNote">Add progress entries to unlock trend.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 mt-4">
+                <div class="card p-4" id="achievementsCard">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="mb-0">Achievements</h4>
+                        <span class="small text-muted" id="achievementCounter">0/3 unlocked</span>
+                    </div>
+                    <div class="row g-3" id="achievementGrid">
+                        <div class="col-md-4">
+                            <div class="achievement-item" data-achievement="planStarter">
+                                <div class="achievement-icon"><i class="fa-solid fa-bolt"></i></div>
+                                <div class="achievement-title">Plan Starter</div>
+                                <div class="achievement-note">Generate your first diet plan.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="achievement-item" data-achievement="hydrationHero">
+                                <div class="achievement-icon"><i class="fa-solid fa-droplet"></i></div>
+                                <div class="achievement-title">Hydration Hero</div>
+                                <div class="achievement-note">Hit 8 glasses in a day.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="achievement-item" data-achievement="consistencyChamp">
+                                <div class="achievement-icon"><i class="fa-solid fa-chart-line"></i></div>
+                                <div class="achievement-title">Consistency Champ</div>
+                                <div class="achievement-note">Add 3 weight progress entries.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
 
@@ -265,6 +369,7 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h4 class="mb-0">Daily Water Intake</h4>
                 <div class="d-flex align-items-center gap-2">
+                    <span class="streak-badge" id="hydrationStreak">Streak: 0 days</span>
                     <button type="button" id="resetWaterBtn" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-rotate-left me-1"></i>Reset</button>
                 </div>
             </div>
@@ -326,7 +431,19 @@
       </div>
     </div>
 
+    <button id="quickActionFab" class="quick-action-fab" type="button" aria-label="Open quick actions">
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
+    </button>
+    <div id="quickActionPanel" class="quick-action-panel hidden" aria-live="polite">
+        <button type="button" class="btn btn-sm btn-primary w-100 mb-2" data-quick-target="#calculator">Go To Calculator</button>
+        <button type="button" class="btn btn-sm btn-outline-primary w-100 mb-2" data-quick-target="#hydration">Go To Hydration</button>
+        <button type="button" class="btn btn-sm btn-outline-primary w-100 mb-2" id="quickToggleThemeBtn">Toggle Theme</button>
+        <button type="button" class="btn btn-sm btn-outline-primary w-100" id="quickExportProgressBtn">Export Progress</button>
+    </div>
+
+    <div id="toastContainer" class="toast-container-custom" aria-live="polite" aria-atomic="true"></div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="assets/js/app.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

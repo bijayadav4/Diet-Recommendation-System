@@ -10,6 +10,25 @@
     // Cached DOM elements
     const DOM = {};
 
+    function showMessage(msg, title = 'Update') {
+      const container = document.getElementById('toastContainer');
+      if (!container) {
+        alert(msg);
+        return;
+      }
+
+      const toast = document.createElement('div');
+      toast.className = 'toast-custom';
+      toast.innerHTML = `<div class="title">${title}</div><div class="message">${msg}</div>`;
+      container.appendChild(toast);
+      requestAnimationFrame(() => toast.classList.add('visible'));
+
+      setTimeout(() => {
+        toast.classList.remove('visible');
+        setTimeout(() => toast.remove(), 220);
+      }, 2300);
+    }
+
     function loadSnapshot(){
       try {
         const raw = localStorage.getItem(STORAGE_KEYS.RESULT);
@@ -99,7 +118,7 @@
       if (DOM.savePlanBtn) {
         DOM.savePlanBtn.addEventListener('click', () => {
           localStorage.setItem('drs_saved_plan', JSON.stringify(snapshot));
-          alert('Plan saved! You can re-open this results page anytime.');
+          showMessage('Plan saved! You can re-open this results page anytime.', 'Saved');
         });
       }
 
@@ -233,16 +252,16 @@
           const text = lines.join('\n');
           if (navigator.clipboard) {
             navigator.clipboard.writeText(text).then(() => {
-              alert('Grocery list copied to clipboard');
+              showMessage('Grocery list copied to clipboard', 'Copied');
             }).catch(() => {
-              alert('Failed to copy.');
+              showMessage('Failed to copy list. Please try again.', 'Error');
             });
           } else {
             const ta = document.createElement('textarea');
             ta.value = text;
             document.body.appendChild(ta);
             ta.select();
-            try { document.execCommand('copy'); alert('Grocery list copied to clipboard'); } catch {}
+            try { document.execCommand('copy'); showMessage('Grocery list copied to clipboard', 'Copied'); } catch {}
             document.body.removeChild(ta);
           }
         });
